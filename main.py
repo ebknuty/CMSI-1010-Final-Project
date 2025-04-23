@@ -39,9 +39,12 @@ class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__() # Inherits the methods and attributes of the premade pygame player class
         self.image = pygame.transform.rotozoom(pygame.image.load("Premium top-down shooter asset pack\Player with AK.png").convert_alpha(), 0, player_size) # Creates and scales the image of the playable character onto the screen
+        self.image_width = self.image.get_width()
+        self.image_height = self.image.get_height()
         self.rect = self.image.get_rect() # Draws a rectangle around the character to be used for displaying the image, collisions, movement, etc.
-        self.rect.topleft = (player_start_pos)
-        self.pos = vector(self.rect.topleft) # Sets the players position as a vector with direction and magnitude to enable movement
+        self.pos = vector(player_start_pos) # Sets the players position as a vector with direction and magnitude to enable movement
+        self.original_character = self.image
+        self.hitbox = self.original_character.get_rect(center = (self.image_width/2 , self.image_height/2)) # Creates the hitbox for the player
     def movementinputs(self):
         self.move_speedx = 0
         self.move_speedy = 0
@@ -70,16 +73,26 @@ class Player(pygame.sprite.Sprite):
             self.move_speedy /= math.sqrt(2)
     def playermovement(self, between_frames):
         self.pos += vector(self.move_speedx, self.move_speedy) * between_frames # The position will be changed based on the keys pressed by the player and the frame rate is stabilized by multiplying the delta_time variable
+        self.hitbox.center = self.pos
+        self.rect.center = self.hitbox.center
+    def rotation(self):
+        self.cursor_pos = pygame.mouse.get_pos()
+        self.delta_x = (self.cursor_pos[0] - self.hitbox.centerx)
+        self.delta_y = (self.cursor_pos[1] - self.hitbox.centery)
+        self.angle = math.degrees(math.atan2(self.delta_y, self.delta_x))
+        self.image = pygame.transform.rotate(self.original_character, (-self.angle + 85))
+        self.rect = self.image.get_rect(center = self.hitbox.center)
     def update(self, between_frames):
         self.movementinputs()
         self.playermovement(between_frames)
+        self.rotation()
 
 player = Player()
 
 
 
 game_running = True  # The game runs until this variable is false
-
+print(Player)
 # Main game loop
 while game_running == True:
     
