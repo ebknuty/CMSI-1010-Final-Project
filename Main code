@@ -84,23 +84,91 @@ while game_running == True:
 
 
 # Erin's Branch Gun Classes
-    class Bullet(pygame.sprite.Sprite):
-    def __init__(self, start_pos, target_pos):
-        super().__init__()
-        self.image = pygame.Surface((5, 5))
-        self.image.fill((255, 255, 0))  # yellow color
-        self.rect = self.image.get_rect(center=start_pos)
 
-        # Calculate direction
-        direction = pygame.math.Vector2(target_pos) - pygame.math.Vector2(start_pos)
-        if direction.length() != 0:
-            direction = direction.normalize()
-        self.speed = direction * 10
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, pos, direction, speed=500, color=(255, 0, 0), radius=3):
+        super().__init__()
+        # Bullet logistics
+        self.image = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, color, (radius, radius), radius)
+        self.rect = self.image.get_rect(center=pos)
+        self.velocity = pygame.math.Vector2(direction).normalize() * speed
+
+    def update(self, dt):
+        # Move bullet
+        self.rect.x += self.velocity.x * dt
+        self.rect.y += self.velocity.y * dt
+
+        # Destroy bullet if it goes off-screen
+        screen_rect = pygame.display.get_surface().get_rect()
+        if not screen_rect.colliderect(self.rect):
+            self.kill()
+
+class Gun:
+    def __init__(self, owner, clip_size, reload_time, cooldown_ms):
+        self.owner = owner
+        self.clip_size = clip_size
+        self.ammo = clip_size
+        self.reload_time = reload_time * 1000
+        self.cooldown = cooldown_ms
+        self.last_shot = 0
+        self.is_reloading = False
+        self.reload_start = 0
 
     def update(self):
-        self.rect.x += self.speed.x
-        self.rect.y += self.speed.y
+        if self.is_reloading:
+            now = pygame.time.get_ticks()
+            if now - self.reload_start >= self.reload_time:
+                self.ammo = self.clip_size
+                self.is_reloading = False
 
-        # remove bullet if off-screen
-        if not display.get_rect().colliderect(self.rect):
-            self.kill()
+    def reload(self):
+        if not self.is_reloading and self.ammo < self.clip_size:
+            self.is_reloading = True
+            self.reload_start = pygame.time.get_ticks()
+
+    def shoot(self, pos, direction, bullet_group):
+        now = pygame.time.get_ticks()
+        if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
+            return None
+
+        # Firing logistics
+        self.last_shot = now
+        self.ammo -= 1
+        bullet = Bullet(pos, direction)
+        bullet_group.add(bullet)
+        return bullet
+
+class Handgun(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=12, reload_time=1.5, cooldown_ms=400)
+
+class AssaultRifle(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=30, reload_time=2.5, cooldown_ms=100)
+
+class Shotgun(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=8, reload_time=2.0, cooldown_ms=800)
+        self.pellets = 7
+        self.spread_angle = 45
+
+    def shoot(self, pos, direction, bullet_group):
+        now = pygame.time.get_ticks()
+        if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
+            return None
+
+        self.last_shot = now
+        self.ammo -= 1
+
+        dir_vec = pygame.math.Vector2(direction).normalize()
+        base_angle = math.degrees(math.atan2(dir_vec.y, dir_vec.x))
+        step = self.spread_angle / (self.pellets - 1)
+
+        for i in range(self.pellets):
+            angle = base_angle - (self.spread_angle / 2) + (i * step)
+            rad = math.radians(angle)
+            pellet_dir = pygame.math.Vector2(math.cos(rad), math.sin(rad))
+            bullet_group.add(Bullet(pos, pellet_dir))
+
+        return True
