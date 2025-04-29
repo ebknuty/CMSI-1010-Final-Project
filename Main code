@@ -1,90 +1,121 @@
 import pygame
 import math
+# We import warnings here to bypass a libpng warning that triggers when some of the game assets are used
 import warnings
+import random
+# Starts up pygame
 pygame.init()
 
 # This is to avoid certain warnings and glitches triggered by using some of the external game assets
-warnings.filterwarnings("ignore",category = UserWarning, module = "PIL.PngImagePlugin")
+warnings.filterwarnings("ignore", category=UserWarning, module="PIL.PngImagePlugin")
 
+FPS = 100  # Caps the frames per second
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 1000
-screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
-MAP_WIDTH = (2000)
-MAP_HEIGHT = (2000)
-player_start_pos = (600 , 600)
+screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)  # Portion of the map the player is able to see at any given moment
+MAP_WIDTH = 2000  # Size of the entire map
+MAP_HEIGHT = 2000
+background_pos = (0, 0)
+player_start_pos = (600, 600)
 player_size = .15
-player_speed = 20
+player_speed = 160
+vector = pygame.math.Vector2  # Sets a variable for the vector function used throughout the code
 
+# Screen set up
 display = pygame.display.set_mode(screen_size)
 pygame.display.set_caption("2D shooter")
 
-
-
+# Variable to set up a clock object that keeps track of time
 clock = pygame.time.Clock()
 
+# Variable to set up and scale the background image that makes up the map
+background = pygame.transform.scale(
+    pygame.image.load("Lords Of Pain/environment/ground.png").convert(),  # EDIT: removed duplicate .png
+    (MAP_WIDTH, MAP_HEIGHT)  # EDIT: swapped to (width, height)
+)
 
+crosshair = pygame.image.load("Premium top-down shooter asset pack/crosshair.png")  # EDIT: used forward slashes
 
-def create_background():
-    background = pygame.transform.scale(pygame.image.load("Lords Of Pain/environment/ground.png.png").convert(), (MAP_HEIGHT,MAP_WIDTH))
-    display.blit(background, (0,0))
-
+game_sprites = pygame.sprite.Group()
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
-        super().__init__()
-        try:
-            self.image = pygame.transform.rotozoom(pygame.image.load("Premium top-down shooter asset pack\Player with AK.png").convert_alpha(), 0, player_size)
-            # self.image = pygame.image.load("Premium top-down shooter asset pack\Player with AK.png").convert_alpha()
-        except:
-            self.image = pygame.Surface((50, 50))
-            self.image.fill((255, 0, 0))  # red fallback
-        self.rect = self.image.get_rect()
-        self.rect.topleft = (player_start_pos)  # position on screen
-        self.pos = pygame.math.Vector2(self.rect.topleft)
+        super().__init__()  # Inherits the methods and attributes of the premade pygame player class
+        self.image = pygame.transform.rotozoom(
+            pygame.image.load("Premium top-down shooter asset pack/Player with AK.png").convert_alpha(),  # EDIT: forward slashes
+            0, player_size
+        )  # Creates and scales the image of the playable character onto the screen
+        self.image_width = self.image.get_width()
+        self.image_height = self.image.get_height()
+        self.rect = self.image.get_rect()  # Draws a rectangle around the character to be used for displaying the image, collisions, movement, etc.
+        self.pos = vector(player_start_pos)  # Sets the players position as a vector with direction and magnitude to enable movement
+        self.original_character = self.image
+        self.hitbox = self.original_character.get_rect(
+            center=(self.image_width/2, self.image_height/2)
+        )  # Creates the hitbox for the player
+
     def movementinputs(self):
+        keys = pygame.key.get_pressed()  # EDIT: renamed `input` to `keys` to avoid shadowing built-in
         self.move_speedx = 0
         self.move_speedy = 0
-        input = pygame.key.get_pressed()
-        if input[pygame.K_w]:
+        # When the player presses W, A, S, or D on their keyboard this method adds or subtracts a speed variable from the players position to create movement
+        if keys[pygame.K_w]:
             self.move_speedy -= player_speed
-        elif input[pygame.K_a]:
+        if keys[pygame.K_a]:
             self.move_speedx -= player_speed
-        elif input[pygame.K_s]:
+        if keys[pygame.K_s]:
             self.move_speedy += player_speed
-        elif input[pygame.K_d]:
+        if keys[pygame.K_d]:
             self.move_speedx += player_speed
-    def playermovement(self):
-        self.pos += pygame.math.Vector2(self.move_speedx, self.move_speedy)
-    def update(self):
+        # Normalize diagonal movement
+        if (keys[pygame.K_w] or keys[pygame.K_s]) and (keys[pygame.K_a] or keys[pygame.K_d]):
+            self.move_speedx /= math.sqrt(2)
+            self.move_speedy /= math.sqrt(2)
+
+    def playermovement(self, between_frames):
+        self.pos += vector(self.move_speedx, self.move_speedy) * between_frames
+        self.hitbox.center = self.pos
+        self.rect.center = self.hitbox.center
+
+    def rotation(self, cursor_pos):
+        self.cursor_pos = cursor_pos  # EDIT: use passed-in cursor_pos
+        dx = self.cursor_pos[0] - SCREEN_WIDTH / 2
+        dy = self.cursor_pos[1] - SCREEN_HEIGHT / 2
+        angle = math.degrees(math.atan2(dy, dx))
+        self.image = pygame.transform.rotate(self.original_character, -angle + 90)
+        self.rect = self.image.get_rect(center=self.hitbox.center)
+
+    def update(self, between_frames, cursor_pos):
         self.movementinputs()
-        self.playermovement()
-    
-    
+        self.playermovement(between_frames)
+        self.rotation(cursor_pos)
+
+class Camera:
+    def __init__(self):
+        self.offset = pygame.math.Vector2()
+        self.bg_rect = background.get_rect(topleft=background_pos)
+
+    def move_bg(self):
+        # Moves the background based on the center position of the player
+        self.offset.x = player.rect.centerx - SCREEN_WIDTH / 2
+        self.offset.y = player.rect.centery - SCREEN_HEIGHT / 2
+
+        bg_offset = self.bg_rect.topleft - self.offset
+        display.blit(background, bg_offset)
+
+        # Draw all sprites with the same offset
+        for sprite in game_sprites:
+            pos = sprite.rect.topleft - self.offset
+            display.blit(sprite.image, pos)
+
+camera = Camera()
 
 player = Player()
-    
+game_sprites.add(player)
 
-
-game_running = True
-while game_running == True:
-
-    clock.tick(60)
-
-    
-    create_background()
-    display.blit(player.image,player.pos)
-    player.update()
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            game_running = False
-
-
-    pygame.display.update()
-
+pygame.mouse.set_visible(False)
 
 # Erin's Branch Gun Classes
-
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, pos, direction, speed=500, color=(255, 0, 0), radius=3):
         super().__init__()
@@ -98,10 +129,8 @@ class Bullet(pygame.sprite.Sprite):
         # Move bullet
         self.rect.x += self.velocity.x * dt
         self.rect.y += self.velocity.y * dt
-
-        # Destroy bullet if it goes off-screen
-        screen_rect = pygame.display.get_surface().get_rect()
-        if not screen_rect.colliderect(self.rect):
+        # Destroy bullet if off-screen
+        if not display.get_rect().colliderect(self.rect):
             self.kill()
 
 class Gun:
@@ -131,8 +160,6 @@ class Gun:
         now = pygame.time.get_ticks()
         if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
             return None
-
-        # Firing logistics
         self.last_shot = now
         self.ammo -= 1
         bullet = Bullet(pos, direction)
@@ -157,30 +184,54 @@ class Shotgun(Gun):
         now = pygame.time.get_ticks()
         if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
             return None
-
         self.last_shot = now
         self.ammo -= 1
-
         dir_vec = pygame.math.Vector2(direction).normalize()
         base_angle = math.degrees(math.atan2(dir_vec.y, dir_vec.x))
         step = self.spread_angle / (self.pellets - 1)
-
         for i in range(self.pellets):
-            angle = base_angle - (self.spread_angle / 2) + (i * step)
+            angle = base_angle - self.spread_angle/2 + i*step
             rad = math.radians(angle)
             pellet_dir = pygame.math.Vector2(math.cos(rad), math.sin(rad))
             bullet_group.add(Bullet(pos, pellet_dir))
-
         return True
 
 # Player Shooting Function
 def handle_player_input(player, bullet_group):
-# Left click to shoot, R to reload
     for event in pygame.event.get():
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = pygame.mouse.get_pos()
             direction = pygame.math.Vector2(mouse_pos) - player.rect.center
             player.gun.shoot(player.rect.center, direction, bullet_group)
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                player.gun.reload()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+            player.gun.reload()
+
+# Set up bullet group and give the player a gun
+bullet_group = pygame.sprite.Group()  # EDIT: added bullet_group
+player.gun = AssaultRifle(player)     # EDIT: assign a default gun to player
+
+game_running = True  # The game runs until this variable is false
+
+# Main game loop
+while game_running:
+    between_frames = clock.tick(FPS) / 1000
+    cursor = pygame.mouse.get_pos()
+
+    handle_player_input(player, bullet_group)  # EDIT: handle shooting & reload events
+
+    camera.move_bg()
+    game_sprites.update(between_frames, cursor)
+    bullet_group.update(between_frames)         # EDIT: update bullets with dt
+    # Draw bullets
+    for bullet in bullet_group:
+        pos = bullet.rect.topleft - camera.offset
+        display.blit(bullet.image, pos)
+
+    display.blit(crosshair, (cursor[0] - crosshair.get_width()//2,
+                             cursor[1] - crosshair.get_height()//2))
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            game_running = False
+
+    pygame.display.update()
