@@ -172,3 +172,15 @@ class Shotgun(Gun):
             bullet_group.add(Bullet(pos, pellet_dir))
 
         return True
+
+# Player Shooting Function
+def handle_player_input(player, bullet_group):
+# Left click to shoot, R to reload
+    for event in pygame.event.get():
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_pos = pygame.mouse.get_pos()
+            direction = pygame.math.Vector2(mouse_pos) - player.rect.center
+            player.gun.shoot(player.rect.center, direction, bullet_group)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                player.gun.reload()
