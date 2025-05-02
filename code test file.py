@@ -1,0 +1,314 @@
+import pygame
+import math
+# We import warnings here to bypass a libpng warning that triggers when some of the game assets are used
+import warnings
+import random
+# Starts up pygame
+pygame.init()
+
+# This is to avoid certain warnings and glitches triggered by using some of the external game assets
+warnings.filterwarnings("ignore", category=UserWarning, module="PIL.PngImagePlugin")
+
+FPS = 100  # Caps the frames per second
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 1000
+screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)  # Portion of the map the player is able to see at any given moment
+MAP_WIDTH = 2000  # Size of the entire map
+MAP_HEIGHT = 2000
+background_pos = (0, 0)
+player_start_pos = (600, 600)
+player_size = .15
+player_speed = 160
+vector = pygame.math.Vector2  # Sets a variable for the vector function used throughout the code
+
+# Screen set up
+display = pygame.display.set_mode(screen_size)
+pygame.display.set_caption("2D shooter")
+
+# Variable to set up a clock object that keeps track of time
+clock = pygame.time.Clock()
+
+
+# Variable to set up and scale the background image that makes up the map
+background = pygame.transform.scale(
+    pygame.image.load("Lords Of Pain/environment/ground.png.png").convert(),  # EDIT: removed duplicate .png
+    (MAP_WIDTH, MAP_HEIGHT)  # EDIT: swapped to (width, height)
+)
+
+
+
+crosshair = pygame.image.load("Premium top-down shooter asset pack/crosshair.png")  # EDIT: used forward slashes
+
+game_sprites = pygame.sprite.Group()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()  # Inherits the methods and attributes of the premade pygame player class
+        self.image = pygame.transform.rotozoom(
+            pygame.image.load("Premium top-down shooter asset pack/Player with AK.png").convert_alpha(),  # EDIT: forward slashes
+            0, player_size
+        )  # Creates and scales the image of the playable character onto the screen
+        self.image_width = self.image.get_width()
+        self.image_height = self.image.get_height()
+        self.rect = self.image.get_rect()  # Draws a rectangle around the character to be used for displaying the image, collisions, movement, etc.
+        self.pos = vector(player_start_pos)  # Sets the players position as a vector with direction and magnitude to enable movement
+        self.original_character = self.image
+        self.hitbox = self.original_character.get_rect(
+            center=(self.image_width/2, self.image_height/2)
+        )  # Creates the hitbox for the player
+
+    def movementinputs(self):
+        keys = pygame.key.get_pressed()  # EDIT: renamed `input` to `keys` to avoid shadowing built-in
+        self.move_speedx = 0
+        self.move_speedy = 0
+        # When the player presses W, A, S, or D on their keyboard this method adds or subtracts a speed variable from the players position to create movement
+        if keys[pygame.K_w]:
+            self.move_speedy -= player_speed
+        if keys[pygame.K_a]:
+            self.move_speedx -= player_speed
+        if keys[pygame.K_s]:
+            self.move_speedy += player_speed
+        if keys[pygame.K_d]:
+            self.move_speedx += player_speed
+        # Normalize diagonal movement
+        if (keys[pygame.K_w] or keys[pygame.K_s]) and (keys[pygame.K_a] or keys[pygame.K_d]):
+            self.move_speedx /= math.sqrt(2)
+            self.move_speedy /= math.sqrt(2)
+
+    def playermovement(self, between_frames):
+        self.pos += vector(self.move_speedx, self.move_speedy) * between_frames
+        self.hitbox.center = self.pos
+        self.rect.center = self.hitbox.center
+
+    def rotation(self, cursor_pos):
+        self.cursor_pos = cursor_pos  # EDIT: use passed-in cursor_pos
+        dx = self.cursor_pos[0] - SCREEN_WIDTH / 2
+        dy = self.cursor_pos[1] - SCREEN_HEIGHT / 2
+        angle = math.degrees(math.atan2(dy, dx))
+        self.image = pygame.transform.rotate(self.original_character, -angle + 90)
+        self.rect = self.image.get_rect(center=self.hitbox.center)
+
+    def update(self, between_frames, cursor_pos):
+        self.movementinputs()
+        self.playermovement(between_frames)
+        self.rotation(cursor_pos)
+
+class Camera:
+    def __init__(self):
+        self.offset = pygame.math.Vector2()
+        self.bg_rect = background.get_rect(topleft=background_pos)
+
+    def move_bg(self):
+        # Moves the background based on the center position of the player
+        self.offset.x = player.rect.centerx - SCREEN_WIDTH / 2
+        self.offset.y = player.rect.centery - SCREEN_HEIGHT / 2
+
+        bg_offset = self.bg_rect.topleft - self.offset
+        display.blit(background, bg_offset)
+
+        # Draw all sprites with the same offset
+        for sprite in game_sprites:
+            pos = sprite.rect.topleft - self.offset
+            display.blit(sprite.image, pos)
+
+camera = Camera()
+
+player = Player()
+game_sprites.add(player)
+
+pygame.mouse.set_visible(False)
+
+# Erin's Branch Gun Classes
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, pos, direction, speed=500, color=(255, 0, 0), radius=3):
+        super().__init__()
+        # Bullet logistics
+        self.image = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, color, (radius, radius), radius)
+        self.rect = self.image.get_rect(center=pos)
+        self.velocity = pygame.math.Vector2(direction).normalize() * speed
+
+    def update(self, dt):
+        # Move bullet
+        self.rect.x += (self.velocity.x * dt)
+        self.rect.y += (self.velocity.y * dt)
+        # Destroy bullet if off-screen
+        if not display.get_rect().colliderect(self.rect):
+            self.kill()
+
+class Gun:
+    def __init__(self, owner, clip_size, reload_time, cooldown_ms):
+        self.owner = owner
+        self.clip_size = clip_size
+        self.ammo = clip_size
+        self.reload_time = reload_time * 1000
+        self.cooldown = cooldown_ms
+        self.last_shot = 0
+        self.is_reloading = False
+        self.reload_start = 0
+
+    def update(self):
+        if self.is_reloading:
+            now = pygame.time.get_ticks()
+            if now - self.reload_start >= self.reload_time:
+                self.ammo = self.clip_size
+                self.is_reloading = False
+
+    def reload(self):
+        if not self.is_reloading and self.ammo < self.clip_size:
+            self.is_reloading = True
+            self.reload_start = pygame.time.get_ticks()
+
+    def shoot(self, pos, direction, bullet_group):
+        now = pygame.time.get_ticks()
+        if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
+            return None
+        self.last_shot = now
+        self.ammo -= 1
+        bullet = Bullet(pos, direction)
+        bullet_group.add(bullet)
+        return bullet
+
+class Handgun(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=12, reload_time=1.5, cooldown_ms=400)
+
+class AssaultRifle(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=30, reload_time=2.5, cooldown_ms=100)
+
+class Shotgun(Gun):
+    def __init__(self, owner):
+        super().__init__(owner, clip_size=8, reload_time=2.0, cooldown_ms=800)
+        self.pellets = 7
+        self.spread_angle = 45
+
+    def shoot(self, pos, direction, bullet_group):
+        now = pygame.time.get_ticks()
+        if self.is_reloading or self.ammo <= 0 or (now - self.last_shot) < self.cooldown:
+            return None
+        self.last_shot = now
+        self.ammo -= 1
+        dir_vec = pygame.math.Vector2(direction).normalize()
+        base_angle = math.degrees(math.atan2(dir_vec.y, dir_vec.x))
+        step = self.spread_angle / (self.pellets - 1)
+        for i in range(self.pellets):
+            angle = base_angle - self.spread_angle/2 + i*step
+            rad = math.radians(angle)
+            pellet_dir = pygame.math.Vector2(math.cos(rad), math.sin(rad))
+            bullet_group.add(Bullet(pos, pellet_dir))
+        return True
+    
+
+
+# class Enemy(pygame.sprite.Sprite):
+#     def __init__(self):
+#         super().__init__()
+#         self.image = pygame.transform.rotozoom(
+#             pygame.image.load(
+#                 "Premium_top-down_shooter_asset_pack/Bug_enemy.png"
+#             ).convert_alpha(),
+#             0,
+#             PLAYER_SIZE
+#         )
+#         self.rect = self.image.get_rect()
+#         # spawn near player
+#         offset_x = random.randint(-100, 100)
+#         offset_y = random.randint(-100, 100)
+#         self.pos = Vector(PLAYER_START_POS[0] + offset_x,
+#                           PLAYER_START_POS[1] + offset_y)
+#         self.rect.topleft = self.pos
+
+#         self.speed = 80  # px/sec
+#         self._pick_new_direction()
+
+#     def _pick_new_direction(self):
+#         dx, dy = random.uniform(-1, 1), random.uniform(-1, 1)
+#         v = Vector(dx, dy)
+#         if v.length_squared() == 0:
+#             v = Vector(1, 0)
+#         self.direction = v.normalize()
+#         # next change in 0.5–2s
+#         self.next_change = pygame.time.get_ticks() + random.randint(500, 2000)
+
+#     def update(self, dt):
+#         now = pygame.time.get_ticks()
+#         if now >= self.next_change:
+#             self._pick_new_direction()
+#         # move and clamp inside map
+#         self.pos += self.direction * self.speed * dt
+#         self.pos.x = max(0, min(self.pos.x, MAP_WIDTH - self.rect.width))
+#         self.pos.y = max(0, min(self.pos.y, MAP_HEIGHT - self.rect.height))
+#         self.rect.topleft = self.pos
+
+# enemy = Enemy()
+# enemies = pygame.sprite.Group(enemy)
+
+# Player Shooting Function
+def handle_player_input(player, bullet_group, camera):
+    for event in pygame.event.get():
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_pos = vector(pygame.mouse.get_pos()) + camera.offset
+            direction = mouse_pos - player.rect.center
+            player.gun.shoot(player.rect.center, direction, bullet_group)
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+            player.gun.reload()
+
+# class map_boundary(Player):
+#     def __init__(self):
+#         super().__init__()
+#         self.background = pygame.transform.scale(
+#         pygame.image.load("Lords Of Pain/environment/ground.png.png").convert(),
+#         (MAP_WIDTH, MAP_HEIGHT)) 
+#         self.bg_width = self.background.get_width()
+#         self.bg_height = self.background.get_height()
+#         self.center =  (self.bg_width/2, self.bg_height/2)
+
+#     def create_bound(self):
+#         self.rect = self.background.get_rect(center = (self.center))
+#         print(self.bg)
+#         if self.hitbox.centerx >= self.bg_width or self.hitbox.centery >= self.bg_height:
+            
+#             pygame.quit()
+
+# map_bounds = map_boundary()
+# Set up bullet group and give the player a gun
+bullet_group = pygame.sprite.Group()  # EDIT: added bullet_group
+player.gun = AssaultRifle(player)     # EDIT: assign a default gun to player
+
+game_running = True  # The game runs until this variable is false
+
+
+SPAWN_EVENT = pygame.USEREVENT + 1
+pygame.time.set_timer(SPAWN_EVENT, 3000)
+
+# Main game loop
+while game_running:
+    between_frames = clock.tick(FPS) / 1000
+    cursor = pygame.mouse.get_pos()
+
+    
+    handle_player_input(player, bullet_group, camera)  # EDIT: handle shooting & reload events
+
+    camera.move_bg()
+    game_sprites.update(between_frames, cursor)
+    bullet_group.update(between_frames)         # EDIT: update bullets with dt
+    # map_bounds.create_bound()
+    # Draw bullets
+    for bullet in bullet_group:
+        pos = bullet.rect.topleft - camera.offset
+        display.blit(bullet.image, pos)
+
+    display.blit(crosshair, (cursor[0] - crosshair.get_width()//2, cursor[1] - crosshair.get_height()//2))
+    
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            game_running = False
+        # elif event.type == SPAWN_EVENT:
+        #     e = Enemy()
+        #     enemies.add(e)
+        #     game_sprites.add(e)
+
+
+    pygame.display.update()
