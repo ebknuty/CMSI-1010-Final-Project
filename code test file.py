@@ -20,6 +20,7 @@ player_start_pos = (600, 600)
 player_size = .15
 player_speed = 160
 vector = pygame.math.Vector2  # Sets a variable for the vector function used throughout the code
+max_enemies = 5
 
 # Screen set up
 display = pygame.display.set_mode(screen_size)
@@ -201,48 +202,49 @@ class Shotgun(Gun):
     
 
 
-# class Enemy(pygame.sprite.Sprite):
-#     def __init__(self):
-#         super().__init__()
-#         self.image = pygame.transform.rotozoom(
-#             pygame.image.load(
-#                 "Premium_top-down_shooter_asset_pack/Bug_enemy.png"
-#             ).convert_alpha(),
-#             0,
-#             PLAYER_SIZE
-#         )
-#         self.rect = self.image.get_rect()
-#         # spawn near player
-#         offset_x = random.randint(-100, 100)
-#         offset_y = random.randint(-100, 100)
-#         self.pos = Vector(PLAYER_START_POS[0] + offset_x,
-#                           PLAYER_START_POS[1] + offset_y)
-#         self.rect.topleft = self.pos
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.transform.rotozoom(
+            pygame.image.load(
+                "Premium top-down shooter asset pack\Bug_enemy.png"
+            ).convert_alpha(),
+            0,
+            player_size
+        )
+        self.rect = self.image.get_rect()
+        # spawn near player
+        offset_x = random.randint(-100, 100)
+        offset_y = random.randint(-100, 100)
+        self.pos = vector(player_start_pos[0] + offset_x,
+                          player_start_pos[1] + offset_y)
+        self.rect.topleft = self.pos
 
-#         self.speed = 80  # px/sec
-#         self._pick_new_direction()
+        self.speed = 80  # px/sec
+        self._pick_new_direction()
 
-#     def _pick_new_direction(self):
-#         dx, dy = random.uniform(-1, 1), random.uniform(-1, 1)
-#         v = Vector(dx, dy)
-#         if v.length_squared() == 0:
-#             v = Vector(1, 0)
-#         self.direction = v.normalize()
-#         # next change in 0.5–2s
-#         self.next_change = pygame.time.get_ticks() + random.randint(500, 2000)
+    def _pick_new_direction(self):
+        dx, dy = random.uniform(-1, 1), random.uniform(-1, 1)
+        v = vector(dx, dy)
+        if v.length_squared() == 0:
+            v = vector(1, 0)
+        self.direction = v.normalize()
+        # next change in 0.5–2s
+        self.next_change = pygame.time.get_ticks() + random.randint(500, 2000)
 
-#     def update(self, dt):
-#         now = pygame.time.get_ticks()
-#         if now >= self.next_change:
-#             self._pick_new_direction()
-#         # move and clamp inside map
-#         self.pos += self.direction * self.speed * dt
-#         self.pos.x = max(0, min(self.pos.x, MAP_WIDTH - self.rect.width))
-#         self.pos.y = max(0, min(self.pos.y, MAP_HEIGHT - self.rect.height))
-#         self.rect.topleft = self.pos
+    def update(self, dt, placeholder):
+        zero = 0
+        now = pygame.time.get_ticks()
+        if now >= self.next_change:
+            self._pick_new_direction()
+        # move and clamp inside map
+        self.pos += self.direction * self.speed * dt
+        self.pos.x = max(zero, min(self.pos.x, MAP_WIDTH - self.rect.width))
+        self.pos.y = max(zero, min(self.pos.y, MAP_HEIGHT - self.rect.height))
+        self.rect.topleft = self.pos
 
-# enemy = Enemy()
-# enemies = pygame.sprite.Group(enemy)
+enemy = Enemy()
+enemies = pygame.sprite.Group(enemy)
 
 # Player Shooting Function
 def handle_player_input(player, bullet_group, camera):
@@ -254,24 +256,7 @@ def handle_player_input(player, bullet_group, camera):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
             player.gun.reload()
 
-# class map_boundary(Player):
-#     def __init__(self):
-#         super().__init__()
-#         self.background = pygame.transform.scale(
-#         pygame.image.load("Lords Of Pain/environment/ground.png.png").convert(),
-#         (MAP_WIDTH, MAP_HEIGHT)) 
-#         self.bg_width = self.background.get_width()
-#         self.bg_height = self.background.get_height()
-#         self.center =  (self.bg_width/2, self.bg_height/2)
 
-#     def create_bound(self):
-#         self.rect = self.background.get_rect(center = (self.center))
-#         print(self.bg)
-#         if self.hitbox.centerx >= self.bg_width or self.hitbox.centery >= self.bg_height:
-            
-#             pygame.quit()
-
-# map_bounds = map_boundary()
 # Set up bullet group and give the player a gun
 bullet_group = pygame.sprite.Group()  # EDIT: added bullet_group
 player.gun = AssaultRifle(player)     # EDIT: assign a default gun to player
@@ -280,7 +265,7 @@ game_running = True  # The game runs until this variable is false
 
 
 SPAWN_EVENT = pygame.USEREVENT + 1
-pygame.time.set_timer(SPAWN_EVENT, 3000)
+pygame.time.set_timer(SPAWN_EVENT, 100)
 
 # Main game loop
 while game_running:
@@ -293,22 +278,23 @@ while game_running:
     camera.move_bg()
     game_sprites.update(between_frames, cursor)
     bullet_group.update(between_frames)         # EDIT: update bullets with dt
-    # map_bounds.create_bound()
+
     # Draw bullets
+    
+
     for bullet in bullet_group:
         pos = bullet.rect.topleft - camera.offset
         display.blit(bullet.image, pos)
-
     display.blit(crosshair, (cursor[0] - crosshair.get_width()//2, cursor[1] - crosshair.get_height()//2))
     
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             game_running = False
-        # elif event.type == SPAWN_EVENT:
-        #     e = Enemy()
-        #     enemies.add(e)
-        #     game_sprites.add(e)
-
+        elif event.type == SPAWN_EVENT:
+            if len(game_sprites) < max_enemies:
+                enemy = Enemy()
+                enemies.add(enemy)
+                game_sprites.add(enemy)
 
     pygame.display.update()
