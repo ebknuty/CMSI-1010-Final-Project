@@ -1,4 +1,5 @@
 import pygame
+import sys
 import math
 # We import warnings here to bypass a libpng warning that triggers when some of the game assets are used
 import warnings
@@ -12,9 +13,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="PIL.PngImagePlug
 FPS = 100  # Caps the frames per second
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 1000
-screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)  # Portion of the map the player is able to see at any given moment
 MAP_WIDTH = 2000  # Size of the entire map
 MAP_HEIGHT = 2000
+screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
 background_pos = (0, 0)
 player_start_pos = (600, 600)
 player_size = .15
@@ -36,7 +37,8 @@ background = pygame.transform.scale(
     (MAP_WIDTH, MAP_HEIGHT)  # EDIT: swapped to (width, height)
 )
 
-
+play_button_img = pygame.transform.scale(pygame.image.load("Premium top-down shooter asset pack/Play Rect.png"), (300,100))
+quit_button_img = pygame.transform.scale(pygame.image.load("Premium top-down shooter asset pack/Quit Rect.png"), (300,100))
 
 crosshair = pygame.image.load("Premium top-down shooter asset pack/crosshair.png")  # EDIT: used forward slashes
 
@@ -79,6 +81,8 @@ class Player(pygame.sprite.Sprite):
     def playermovement(self, between_frames):
         self.pos += vector(self.move_speedx, self.move_speedy) * between_frames
         self.hitbox.center = self.pos
+        self.boundary('horizontal')
+        self.boundary('vertical')
         self.rect.center = self.hitbox.center
 
     def rotation(self, cursor_pos):
@@ -88,11 +92,29 @@ class Player(pygame.sprite.Sprite):
         angle = math.degrees(math.atan2(dy, dx))
         self.image = pygame.transform.rotate(self.original_character, -angle + 90)
         self.rect = self.image.get_rect(center=self.hitbox.center)
+    def boundary(self, direction):
+        if direction == 'horizontal':
+            if self.hitbox.center[0] < 152:
+                self.hitbox.centerx = 152
+            elif self.hitbox.center[0] > 1929:
+                self.hitbox.centerx = 1929
+        if direction == 'vertical':
+            if self.hitbox.center[1] < 221:
+                self.hitbox.centery = 221
+            elif self.hitbox.center[1] > 1911:
+                self.hitbox.centery = 1911
+        self.pos = vector(self.hitbox.center)
+        self.rect.center = self.hitbox.center
+
+
+
+
 
     def update(self, between_frames, cursor_pos):
         self.movementinputs()
         self.playermovement(between_frames)
         self.rotation(cursor_pos)
+        
 
 class Camera:
     def __init__(self):
@@ -105,19 +127,21 @@ class Camera:
         self.offset.y = player.rect.centery - SCREEN_HEIGHT / 2
 
         bg_offset = self.bg_rect.topleft - self.offset
+        # print(bg_offset)
         display.blit(background, bg_offset)
 
         # Draw all sprites with the same offset
         for sprite in game_sprites:
             pos = sprite.rect.topleft - self.offset
             display.blit(sprite.image, pos)
+        
 
 camera = Camera()
 
 player = Player()
 game_sprites.add(player)
 
-pygame.mouse.set_visible(False)
+
 
 # Erin's Branch Gun Classes
 class Bullet(pygame.sprite.Sprite):
@@ -267,8 +291,56 @@ game_running = True  # The game runs until this variable is false
 SPAWN_EVENT = pygame.USEREVENT + 1
 pygame.time.set_timer(SPAWN_EVENT, 100)
 
+
+class Menu():
+    def __init__(self, image, pos, font, text_input):
+        self.image = image
+        self.pos = pos
+        self.font = font
+        self.rect = self.image.get_rect(center = (self.pos[0],self.pos[1]))
+        self.text_input = text_input
+
+    def draw(self):
+       self.text = self.font.render(self.text_input, True, "white")
+       self.text_rect = self.text.get_rect(center = (self.pos[0],self.pos[1]))
+       display.blit(self.image,self.rect)
+       display.blit(self.text, self.text_rect)
+
+
+    def check_click(self, event):
+        mouse_pos = pygame.mouse.get_pos()
+        if mouse_pos[0] in range(self.rect.left, self.rect.right) and mouse_pos[1] in range(self.rect.top, self.rect.bottom):
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                return True
+        return False
+
+         
+
+def main_menu():
+    play_button = Menu(play_button_img, (500,350), pygame.font.Font("Premium top-down shooter asset pack/font.ttf", 100), "PLAY")
+    quit_button = Menu(quit_button_img, (500,600), pygame.font.Font("Premium top-down shooter asset pack/font.ttf", 100), "QUIT")
+    menu_active = True
+    while menu_active == True:
+        display.fill("black")
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit
+            if play_button.check_click(event) == True:
+                menu_active = False
+            if quit_button.check_click(event) == True:
+                pygame.quit()
+                sys.exit()
+        play_button.draw()
+        quit_button.draw()
+        pygame.display.update()
+        clock.tick(FPS)
+
+
+main_menu()
 # Main game loop
 while game_running:
+    pygame.mouse.set_visible(False)
     between_frames = clock.tick(FPS) / 1000
     cursor = pygame.mouse.get_pos()
 
