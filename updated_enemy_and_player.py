@@ -1,5 +1,5 @@
 ######## Hey guys. This should make it so that the player can take damage from the enemy bugs. The bugs should also die after 
-######## getting shot 5 times. 
+######## getting shot 5 times. I also implemented waves
 
 import pygame
 import sys
