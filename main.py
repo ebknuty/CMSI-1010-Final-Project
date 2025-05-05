@@ -122,26 +122,6 @@ player = Player()
 game_sprites.add(player)
 
 pygame.mouse.set_visible(False)
-class Bullet(pygame.sprite.Sprite):
-    def __init__(self, start_pos, target_pos):
-        super().__init__()
-        self.image = pygame.Surface((5, 5))
-        self.image.fill((255, 255, 0))  # yellow color
-        self.rect = self.image.get_rect(center=start_pos)
-
-        # Calculate direction
-        direction = vector(target_pos) - vector(start_pos)
-        if direction.length() != 0:
-            direction = direction.normalize()
-        self.speed = direction * 10
-
-    def update(self):
-        self.rect.x += self.speed.x
-        self.rect.y += self.speed.y
-
-        # remove bullet if off-screen
-        if not display.get_rect().colliderect(self.rect):
-            self.kill()
 
 
 
@@ -164,5 +144,5 @@ while game_running == True:
 
     
     pygame.display.update() #Refreshes the screen
-    
+
 
