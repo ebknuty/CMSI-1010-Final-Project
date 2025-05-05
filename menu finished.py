@@ -161,14 +161,8 @@ game_sprites.add(player)
 
 enemy = None  # placeholder
 
-def handle_player_input(player, bullet_group, camera):
-    for event in pygame.event.get():
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            mouse_pos = vector(pygame.mouse.get_pos()) + camera.offset
-            direction = mouse_pos - player.rect.center
-            player.gun.shoot(player.rect.center, direction, bullet_group)
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-            player.gun.reload()
+
+
 
 # Erin's Branch Gun Classes
 class Bullet(pygame.sprite.Sprite):
@@ -224,7 +218,7 @@ class Handgun(Gun):
 
 class AssaultRifle(Gun):
     def __init__(self, owner):
-        super().__init__(owner, clip_size=30, reload_time=2.5, cooldown_ms=100)
+        super().__init__(owner, clip_size=24, reload_time=2.5, cooldown_ms=100)
 
 class Shotgun(Gun):
     def __init__(self, owner):
@@ -247,6 +241,17 @@ class Shotgun(Gun):
             pellet_dir = pygame.math.Vector2(math.cos(rad), math.sin(rad))
             bullet_group.add(Bullet(pos, pellet_dir))
         return True
+
+def handle_player_input(player, bullet_group, camera):
+    for event in pygame.event.get():
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_pos = vector(pygame.mouse.get_pos()) + camera.offset
+            direction = mouse_pos - player.rect.center
+            player.gun.shoot(player.rect.center, direction, bullet_group)
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+            player.gun.reload()
+
+
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self):
@@ -280,8 +285,8 @@ class Enemy(pygame.sprite.Sprite):
         if now >= self.next_change:
             self._pick_new_direction()
         self.pos += self.direction * self.speed * dt
-        self.pos.x = max(0, min(self.pos.x, MAP_WIDTH - self.rect.width))
-        self.pos.y = max(0, min(self.pos.y, MAP_HEIGHT - self.rect.height))
+        self.pos.x = max(152, min(self.pos.x, 1929))
+        self.pos.y = max(221, min(self.pos.y, 1911))
         self.rect.topleft = self.pos
 
 enemy = Enemy()
@@ -371,6 +376,8 @@ while game_running:
     cursor = pygame.mouse.get_pos()
 
     handle_player_input(player, bullet_group, camera)
+    player.gun.update()  # This updates reload status
+
 
     camera.move_bg()
     game_sprites.update(between_frames, cursor)
