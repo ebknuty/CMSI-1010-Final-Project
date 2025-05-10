@@ -162,20 +162,25 @@ game_sprites.add(player)
 enemy = None  # placeholder
 
 def handle_player_input(player, bullet_group, camera):
+    keys = pygame.key.get_pressed()
+    
+    if keys[pygame.K_1]:
+        player.gun = Handgun(player)
+    elif keys[pygame.K_2]:
+        player.gun = Shotgun(player)
+    elif keys[pygame.K_3]:
+        player.gun = AssaultRifle(player)
+
     for event in pygame.event.get():
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = vector(pygame.mouse.get_pos()) + camera.offset
             direction = mouse_pos - player.rect.center
             player.gun.shoot(player.rect.center, direction, bullet_group)
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
             player.gun.reload()
-        if event.key == pygame.K_1:
-            player.gun = Handgun(player)
-        elif event.key == pygame.K_2:
-            player.gun = Shotgun(player)
-        elif event.key == pygame.K_3:
-            player.gun = AssaultRifle(player)
-
 
 # Erin's Branch Gun Classes
 class Bullet(pygame.sprite.Sprite):
