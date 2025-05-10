@@ -23,6 +23,8 @@ Our project is a 2D Cave Shooter is a wave-based, top-down shooter game we devlo
 
 - Reload functionality bound to R.
 
+- You can change weapons with numbers 1, 2, and 3
+
 - Enemy Behavior: Enemies spawn around the player and navigate toward the player’s position using vector normalization.
 
 # Health and Damage:
