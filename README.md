@@ -37,8 +37,7 @@ Our project is a 2D Cave Shooter is a wave-based, top-down shooter game we devlo
 
 ## Installation
 
-git clone https://github.com/ebknutty/pest-final-project.git
-cd pest-final-project 
+git clone https://github.com/ebknuty/CMSI-1010-Final-Project.git
 
 pip install pygame 
 
